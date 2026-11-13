@@ -1,0 +1,10 @@
+{
+  "name": "ENGLISH AUDIO MISSION",
+  "description": "Juego educativo interactivo para guiar a los aprendices del SENA en la preparación de su evidencia GA3-240202501-AA2-EV02 – AUDIO en inglés.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
