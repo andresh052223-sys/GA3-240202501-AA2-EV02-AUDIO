@@ -1,4 +1,4 @@
-import type { BadgeInfo, JourneyQuestionAnswer, MissionNumber } from '../types';
+import type { BadgeInfo, JourneyQuestionAnswer, MissionNumber, QuestionOption } from '../types';
 
 export interface MissionDefinition {
   number: MissionNumber;
@@ -161,6 +161,201 @@ export const INITIAL_JOURNEY_QUESTIONS: JourneyQuestionAnswer[] = [
     spanishTranslation: '',
   },
 ];
+
+export const JOURNEY_OPTIONS_BY_QUESTION: Record<number, QuestionOption[]> = {
+  1: [
+    {
+      id: 'q1-01',
+      number: '01',
+      en: 'I am currently studying a technical training program at SENA.',
+      es: 'Actualmente estoy estudiando un programa de formación técnica en el SENA.',
+    },
+    {
+      id: 'q1-02',
+      number: '02',
+      en: 'I am studying business management and learning how companies work.',
+      es: 'Estoy estudiando gestión empresarial y aprendiendo cómo funcionan las empresas.',
+    },
+    {
+      id: 'q1-03',
+      number: '03',
+      en: 'I am studying accounting and learning about financial processes.',
+      es: 'Estoy estudiando contabilidad y aprendiendo sobre procesos financieros.',
+    },
+    {
+      id: 'q1-04',
+      number: '04',
+      en: 'I am studying tourism and learning how to provide good customer service.',
+      es: 'Estoy estudiando turismo y aprendiendo cómo ofrecer un buen servicio al cliente.',
+    },
+    {
+      id: 'q1-05',
+      number: '05',
+      en: 'I am studying gastronomy and learning how to prepare different dishes.',
+      es: 'Estoy estudiando gastronomía y aprendiendo a preparar diferentes platos.',
+    },
+  ],
+  2: [
+    {
+      id: 'q2-01',
+      number: '01',
+      en: 'I chose this program because I want to improve my professional skills.',
+      es: 'Elegí este programa porque quiero mejorar mis habilidades profesionales.',
+    },
+    {
+      id: 'q2-02',
+      number: '02',
+      en: 'I chose this program because I am interested in this professional field.',
+      es: 'Elegí este programa porque estoy interesado en este campo profesional.',
+    },
+    {
+      id: 'q2-03',
+      number: '03',
+      en: 'I want to learn new things and have better job opportunities.',
+      es: 'Quiero aprender cosas nuevas y tener mejores oportunidades laborales.',
+    },
+    {
+      id: 'q2-04',
+      number: '04',
+      en: 'I chose this program because it is related to my personal interests.',
+      es: 'Elegí este programa porque está relacionado con mis intereses personales.',
+    },
+    {
+      id: 'q2-05',
+      number: '05',
+      en: 'I want to develop my skills and prepare for my professional future.',
+      es: 'Quiero desarrollar mis habilidades y prepararme para mi futuro profesional.',
+    },
+  ],
+  3: [
+    {
+      id: 'q3-01',
+      number: '01',
+      en: 'I have learned how to communicate and work with other people.',
+      es: 'He aprendido a comunicarme y trabajar con otras personas.',
+    },
+    {
+      id: 'q3-02',
+      number: '02',
+      en: 'I have developed technical skills related to my training program.',
+      es: 'He desarrollado habilidades técnicas relacionadas con mi programa de formación.',
+    },
+    {
+      id: 'q3-03',
+      number: '03',
+      en: 'I have learned how to organize my tasks and solve daily problems.',
+      es: 'He aprendido a organizar mis tareas y resolver problemas cotidianos.',
+    },
+    {
+      id: 'q3-04',
+      number: '04',
+      en: 'I have acquired knowledge in teamwork, planning, and digital tools.',
+      es: 'He adquirido conocimientos en trabajo en equipo, planeación y herramientas digitales.',
+    },
+    {
+      id: 'q3-05',
+      number: '05',
+      en: 'I have improved my practical abilities through projects and class activities.',
+      es: 'He mejorado mis habilidades prácticas mediante proyectos y actividades de clase.',
+    },
+  ],
+  4: [
+    {
+      id: 'q4-01',
+      number: '01',
+      en: 'My goal is to complete my SENA program and get my certification.',
+      es: 'Mi meta es completar mi programa del SENA y obtener mi certificación.',
+    },
+    {
+      id: 'q4-02',
+      number: '02',
+      en: 'I want to continue learning and improve my English communication skills.',
+      es: 'Quiero seguir aprendiendo y mejorar mis habilidades de comunicación en inglés.',
+    },
+    {
+      id: 'q4-03',
+      number: '03',
+      en: 'I plan to find a good job and gain practical work experience.',
+      es: 'Planeo conseguir un buen empleo y ganar experiencia laboral práctica.',
+    },
+    {
+      id: 'q4-04',
+      number: '04',
+      en: 'I would like to grow professionally and specialize in my area of study.',
+      es: 'Me gustaría crecer profesionalmente y especializarme en mi área de estudio.',
+    },
+    {
+      id: 'q4-05',
+      number: '05',
+      en: 'My goal is to apply my knowledge to help companies achieve better results.',
+      es: 'Mi meta es aplicar mis conocimientos para ayudar a las empresas a lograr mejores resultados.',
+    },
+  ],
+  5: [
+    {
+      id: 'q5-01',
+      number: '01',
+      en: 'I would like to work in an international company where I can use English.',
+      es: 'Me gustaría trabajar en una empresa internacional donde pueda usar el inglés.',
+    },
+    {
+      id: 'q5-02',
+      number: '02',
+      en: 'I would like to work in a modern company with opportunities to learn.',
+      es: 'Me gustaría trabajar en una empresa moderna con oportunidades para aprender.',
+    },
+    {
+      id: 'q5-03',
+      number: '03',
+      en: 'I want to work in an organization that values teamwork and responsibility.',
+      es: 'Quiero trabajar en una organización que valore el trabajo en equipo y la responsabilidad.',
+    },
+    {
+      id: 'q5-04',
+      number: '04',
+      en: 'In the future, I would like to start my own business or independent project.',
+      es: 'En el futuro, me gustaría iniciar mi propio negocio o proyecto independiente.',
+    },
+    {
+      id: 'q5-05',
+      number: '05',
+      en: 'I would like to work in a recognized company in my professional sector.',
+      es: 'Me gustaría trabajar en una empresa reconocida en mi sector profesional.',
+    },
+  ],
+  6: [
+    {
+      id: 'q6-01',
+      number: '01',
+      en: 'Sometimes English pronunciation is difficult, so I practice listening and speaking every day.',
+      es: 'A veces la pronunciación en inglés es difícil, así que practico escuchando y hablando todos los días.',
+    },
+    {
+      id: 'q6-02',
+      number: '02',
+      en: 'Managing my time can be challenging, so I create a schedule to organize my tasks.',
+      es: 'Administrar mi tiempo puede ser un reto, así que creo un horario para organizar mis tareas.',
+    },
+    {
+      id: 'q6-03',
+      number: '03',
+      en: 'I do not have much work experience yet, so I focus on learning from practical projects.',
+      es: 'Aún no tengo mucha experiencia laboral, así que me enfoco en aprender de proyectos prácticos.',
+    },
+    {
+      id: 'q6-04',
+      number: '04',
+      en: 'Understanding technical terms can be hard, so I review vocabulary and ask for guidance.',
+      es: 'Entender términos técnicos puede ser difícil, así que repaso vocabulario y pido orientación.',
+    },
+    {
+      id: 'q6-05',
+      number: '05',
+      en: 'Working under pressure is sometimes difficult, so I stay calm and focus on finding solutions.',
+      es: 'Trabajar bajo presión a veces es difícil, así que mantengo la calma y me enfoco en encontrar soluciones.',
+    },
+  ],
+};
 
 export interface MultipleChoiceExercise {
   id: string;

@@ -45,11 +45,19 @@ export interface IntroFields {
   activityName: string;
 }
 
+export interface QuestionOption {
+  id: string;
+  number: string;
+  en: string;
+  es: string;
+}
+
 export interface JourneyQuestionAnswer {
   id: number;
   questionEs: string;
   questionEn: string;
   placeholderEs: string;
+  selectedOptionId?: string;
   userInput: string;
   suggestedEnglish: string;
   spanishTranslation: string;

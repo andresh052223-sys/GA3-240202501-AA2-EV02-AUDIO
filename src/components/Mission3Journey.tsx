@@ -1,21 +1,11 @@
-import { useState } from 'react';
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  RefreshCw,
-  Sparkles,
-  Volume2,
-} from 'lucide-react';
-import type { JourneyQuestionAnswer } from '../types';
-import { postJson } from '../utils/apiClient';
-import { playErrorSound, playSuccessSound } from '../utils/sound';
+import { CheckCircle2, ArrowLeft, Volume2 } from 'lucide-react';
+import { JOURNEY_OPTIONS_BY_QUESTION } from '../data/curriculum';
+import type { JourneyQuestionAnswer, QuestionOption } from '../types';
+import { playSuccessSound } from '../utils/sound';
 import { speakEnglish } from '../utils/tts';
 
 interface Mission3JourneyProps {
   answers: JourneyQuestionAnswer[];
-  trainingProgram: string;
   soundEnabled: boolean;
   isCompleted: boolean;
   onUpdateAnswers: (answers: JourneyQuestionAnswer[]) => void;
@@ -23,117 +13,32 @@ interface Mission3JourneyProps {
   onBack: () => void;
 }
 
-interface TransformIdeaResponse {
-  needsMoreDetail?: boolean;
-  clarificationEs?: string;
-  englishSentence?: string;
-  spanishTranslation?: string;
-  grammarNote?: string;
-}
-
 export function Mission3Journey({
   answers,
-  trainingProgram,
   soundEnabled,
   isCompleted,
   onUpdateAnswers,
   onComplete,
   onBack,
 }: Mission3JourneyProps) {
-  const [loadingIds, setLoadingIds] = useState<number[]>([]);
-  const [errors, setErrors] = useState<Record<number, string>>({});
-  const [clarifications, setClarifications] = useState<Record<number, string>>({});
-
   const readyCount = answers.filter((a) => a.suggestedEnglish.trim().length > 0).length;
   const progressPercent = Math.round((readyCount / answers.length) * 100);
+  const allAnswered = readyCount === answers.length;
 
-  const handleInputChange = (id: number, userInput: string) => {
-    const next = answers.map((item) => (item.id === id ? { ...item, userInput } : item));
+  const handleSelectOption = (questionId: number, option: QuestionOption) => {
+    const next = answers.map((item) =>
+      item.id === questionId
+        ? {
+            ...item,
+            selectedOptionId: option.id,
+            userInput: option.es,
+            suggestedEnglish: option.en,
+            spanishTranslation: option.es,
+          }
+        : item
+    );
     onUpdateAnswers(next);
-    if (clarifications[id]) {
-      setClarifications((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
-    }
-  };
-
-  const handleEnglishChange = (id: number, suggestedEnglish: string) => {
-    const next = answers.map((item) => (item.id === id ? { ...item, suggestedEnglish } : item));
-    onUpdateAnswers(next);
-  };
-
-  const transformSingle = async (item: JourneyQuestionAnswer) => {
-    if (loadingIds.includes(item.id)) return;
-
-    if (!item.userInput.trim()) {
-      setErrors((prev) => ({
-        ...prev,
-        [item.id]: 'Escribe primero tu idea en español o inglés antes de transformarla.',
-      }));
-      playErrorSound(soundEnabled);
-      return;
-    }
-
-    setErrors((prev) => {
-      const copy = { ...prev };
-      delete copy[item.id];
-      return copy;
-    });
-    setClarifications((prev) => {
-      const copy = { ...prev };
-      delete copy[item.id];
-      return copy;
-    });
-    setLoadingIds((prev) => [...prev, item.id]);
-
-    try {
-      const data = await postJson<TransformIdeaResponse>('/api/ai/transform-idea', {
-        questionEs: item.questionEs,
-        questionEn: item.questionEn,
-        userInput: item.userInput,
-        trainingProgram,
-      });
-
-      if (data.needsMoreDetail) {
-        setClarifications((prev) => ({
-          ...prev,
-          [item.id]:
-            data.clarificationEs ||
-            'Tu respuesta es muy corta o ambigua. Por favor amplía un poco más tu idea para no inventar información.',
-        }));
-        playErrorSound(soundEnabled);
-        return;
-      }
-
-      if (!data.englishSentence || !data.englishSentence.trim()) {
-        throw new Error('No se recibió una oración en inglés válida. Por favor intenta de nuevo.');
-      }
-
-      const next = answers.map((q) =>
-        q.id === item.id
-          ? {
-              ...q,
-              suggestedEnglish: data.englishSentence || '',
-              spanishTranslation: data.spanishTranslation || '',
-              grammarNote: data.grammarNote || '',
-            }
-          : q
-      );
-      onUpdateAnswers(next);
-      playSuccessSound(soundEnabled);
-    } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'No se pudo conectar con el asistente. Intenta de nuevo.';
-      console.error('[Mission3 Transform Error]', { questionId: item.id, err });
-      setErrors((prev) => ({ ...prev, [item.id]: msg }));
-      playErrorSound(soundEnabled);
-    } finally {
-      setLoadingIds((prev) => prev.filter((x) => x !== item.id));
-    }
+    playSuccessSound(soundEnabled);
   };
 
   return (
@@ -157,15 +62,15 @@ export function Mission3Journey({
               TALK ABOUT YOUR JOURNEY
             </h1>
             <p className="mt-2 text-sm text-slate-300">
-              Responde las 6 preguntas guía en español o inglés con tu información real. Nuestro
-              asistente convertirá tus ideas en oraciones naturales sin inventar experiencias.
+              Elige una de las 5 respuestas predeterminadas en cada una de las 6 preguntas guía.
+              Puedes escuchar la pronunciación en inglés y cambiar tu elección en cualquier momento.
             </p>
           </div>
           <div className="shrink-0 text-right">
             <span className="font-mono-num text-lg font-bold text-emerald-400">
               {readyCount}/6
             </span>
-            <p className="text-xs text-slate-400">Respuestas en inglés listas</p>
+            <p className="text-xs text-slate-400">Preguntas respondidas</p>
           </div>
         </div>
 
@@ -181,10 +86,8 @@ export function Mission3Journey({
 
         <div className="mt-6 space-y-6">
           {answers.map((item) => {
-            const isLoading = loadingIds.includes(item.id);
-            const hasSuggestion = item.suggestedEnglish.trim().length > 0;
-            const errMsg = errors[item.id];
-            const clarificationMsg = clarifications[item.id];
+            const options = JOURNEY_OPTIONS_BY_QUESTION[item.id] || [];
+            const isQuestionAnswered = item.suggestedEnglish.trim().length > 0;
 
             return (
               <div
@@ -194,7 +97,7 @@ export function Mission3Journey({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-mono-num text-xs font-semibold text-sky-400">
-                      Pregunta 0{item.id}
+                      QUESTION 0{item.id}
                     </p>
                     <h2 className="font-display mt-1 text-base font-bold text-slate-100 sm:text-lg">
                       {item.questionEs}
@@ -202,121 +105,101 @@ export function Mission3Journey({
                     <p className="text-sm font-medium text-sky-300">{item.questionEn}</p>
                   </div>
 
-                  {hasSuggestion && (
+                  {isQuestionAnswered && (
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
-                      <span>Lista</span>
+                      <span>Seleccionada</span>
                     </span>
                   )}
                 </div>
 
-                {/* User Original Idea Input */}
-                <div className="mt-4">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    My original idea (escribe en español o inglés):
-                  </label>
-                  <div className="mt-1.5 flex flex-col gap-3 sm:flex-row">
-                    <textarea
-                      rows={2}
-                      value={item.userInput}
-                      disabled={isLoading}
-                      onChange={(e) => handleInputChange(item.id, e.target.value)}
-                      placeholder={item.placeholderEs}
-                      className="w-full rounded-xl border border-slate-700 bg-[#060B17] px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-400 focus:outline-none disabled:opacity-70"
-                    />
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => transformSingle(item)}
-                      className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-violet-500 disabled:cursor-wait disabled:opacity-65 whitespace-nowrap cursor-pointer sm:self-end"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>AI IS THINKING...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4" />
-                          <span>Convertir a inglés</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                {/* Choose your answer header */}
+                <div className="mt-4 border-t border-slate-800/80 pt-4">
+                  <p className="text-sm font-bold text-slate-100">Choose your answer:</p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Selecciona la respuesta que mejor describa tu situación.
+                  </p>
                 </div>
 
-                {isLoading && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3.5 py-2 text-xs font-semibold text-violet-200">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" />
-                    <span>AI IS THINKING... Analizando tu idea sin inventar información.</span>
-                  </div>
-                )}
+                {/* 5 Predetermined Option Cards */}
+                <div className="mt-3 space-y-2.5">
+                  {options.map((option) => {
+                    const isSelected =
+                      item.selectedOptionId === option.id ||
+                      (!item.selectedOptionId && item.suggestedEnglish === option.en);
 
-                {clarificationMsg && (
-                  <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/35 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                    <span>{clarificationMsg}</span>
-                  </div>
-                )}
+                    return (
+                      <div
+                        key={option.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        onClick={() => handleSelectOption(item.id, option)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSelectOption(item.id, option);
+                          }
+                        }}
+                        className={`group flex w-full items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                          isSelected
+                            ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_18px_rgba(16,185,129,0.18)]'
+                            : 'border-slate-800 bg-[#0B1221] hover:border-sky-500/45 hover:bg-[#0E172A]'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <span
+                            className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono-num text-xs font-bold transition-colors ${
+                              isSelected
+                                ? 'bg-emerald-500 text-slate-950'
+                                : 'bg-slate-800 text-sky-300 group-hover:bg-slate-700'
+                            }`}
+                          >
+                            {option.number}
+                          </span>
+                          <div>
+                            <p
+                              className={`text-sm font-semibold leading-snug ${
+                                isSelected ? 'text-emerald-200' : 'text-slate-100'
+                              }`}
+                            >
+                              {option.en}
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                              {option.es}
+                            </p>
+                          </div>
+                        </div>
 
-                {errMsg && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-500/35 bg-rose-950/35 px-3.5 py-2.5 text-xs text-rose-200">
-                    <span>{errMsg}</span>
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => transformSingle(item)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/15 px-2.5 py-1 font-semibold text-rose-100 hover:bg-rose-500/25 cursor-pointer"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      <span>Reintentar</span>
-                    </button>
-                  </div>
-                )}
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              speakEnglish(option.en, { rate: 0.92 });
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300 transition-colors hover:bg-sky-500/25 cursor-pointer"
+                            title="Escuchar pronunciación en inglés"
+                            aria-label={`Escuchar opción ${option.number}`}
+                          >
+                            <Volume2 className="h-3.5 w-3.5" />
+                          </button>
 
-                {/* Result Panel: My idea in English + Original + Traducción */}
-                {hasSuggestion && (
-                  <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
-                    <div className="rounded-xl border border-emerald-500/30 bg-[#060B17] p-3.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-emerald-400">
-                          My idea in English (puedes editarla):
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => speakEnglish(item.suggestedEnglish, { rate: 0.92 })}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-300 transition-colors hover:bg-sky-500/25 cursor-pointer"
-                        >
-                          <Volume2 className="h-3.5 w-3.5" />
-                          <span>Escuchar</span>
-                        </button>
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${
+                              isSelected
+                                ? 'border-emerald-400 bg-emerald-500 text-slate-950'
+                                : 'border-slate-700 bg-transparent text-transparent'
+                            }`}
+                            aria-hidden="true"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </span>
+                        </div>
                       </div>
-                      <textarea
-                        rows={2}
-                        value={item.suggestedEnglish}
-                        onChange={(e) => handleEnglishChange(item.id, e.target.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-800 bg-[#0B1221] px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-800 bg-[#0B1221] p-3">
-                        <p className="font-semibold text-slate-400">My original idea:</p>
-                        <p className="mt-1 text-slate-200">{item.userInput}</p>
-                      </div>
-                      <div className="rounded-xl border border-slate-800 bg-[#0B1221] p-3">
-                        <p className="font-semibold text-sky-400">Traducción:</p>
-                        <p className="mt-1 text-slate-200">{item.spanishTranslation}</p>
-                      </div>
-                    </div>
-
-                    {item.grammarNote && (
-                      <p className="text-xs text-violet-300">
-                        Nota del coach: {item.grammarNote}
-                      </p>
-                    )}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -325,14 +208,14 @@ export function Mission3Journey({
         {/* Footer Complete CTA */}
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800 pt-6">
           <p className="text-xs text-slate-400">
-            {readyCount < 4
-              ? `Convierte al menos 4 preguntas (${readyCount}/4 mínimo, recomendado 6/6) para continuar.`
-              : '¡Excelente trabajo! Tus ideas están listas para construir tu guion.'}
+            {!allAnswered
+              ? `Selecciona una respuesta en cada una de las 6 preguntas (${readyCount}/6) para continuar.`
+              : '¡Excelente! Tus 6 respuestas han sido guardadas para construir tu guion en la Misión 5.'}
           </p>
 
           <button
             type="button"
-            disabled={readyCount < 4}
+            disabled={!allAnswered}
             onClick={onComplete}
             className="inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 transition-all hover:bg-emerald-400 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
           >

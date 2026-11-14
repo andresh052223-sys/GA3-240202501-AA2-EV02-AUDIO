@@ -499,7 +499,6 @@ export default function App() {
         {screen === 'mission-3' && (
           <Mission3Journey
             answers={state.journeyAnswers}
-            trainingProgram={state.profile.trainingProgram}
             soundEnabled={state.progress.soundEnabled}
             isCompleted={state.progress.completedMissions.includes(3)}
             onUpdateAnswers={handleUpdateJourney}
