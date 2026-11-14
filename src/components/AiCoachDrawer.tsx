@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Bot, Loader2, Send, Volume2, X } from 'lucide-react';
 import type { CoachMessage, LearnerProfile } from '../types';
+import { postJson } from '../utils/apiClient';
 import { speakEnglish } from '../utils/tts';
 
 interface AiCoachDrawerProps {
@@ -50,19 +51,16 @@ export function AiCoachDrawer({
     };
 
     try {
-      const res = await fetch('/api/ai/coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          history: messages.slice(-6).map((m) => ({ role: m.role, text: m.text })),
-          currentMission: currentMissionLabel,
-          trainingProgram: profile.trainingProgram,
-          learnerName: profile.fullName,
-        }),
+      const data = await postJson<{
+        replyEs?: string;
+        englishExamples?: string[];
+      }>('/api/ai/coach', {
+        message: trimmed,
+        history: messages.slice(-6).map((m) => ({ role: m.role, text: m.text })),
+        currentMission: currentMissionLabel,
+        trainingProgram: profile.trainingProgram,
+        learnerName: profile.fullName,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al consultar al AI English Coach.');
 
       const assistantMsg: CoachMessage = {
         id: `a-${Date.now()}`,

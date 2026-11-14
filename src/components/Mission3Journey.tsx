@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import {
+  AlertCircle,
   ArrowLeft,
   CheckCircle2,
   Loader2,
+  RefreshCw,
   Sparkles,
   Volume2,
 } from 'lucide-react';
 import type { JourneyQuestionAnswer } from '../types';
+import { postJson } from '../utils/apiClient';
 import { playErrorSound, playSuccessSound } from '../utils/sound';
 import { speakEnglish } from '../utils/tts';
 
@@ -20,6 +23,14 @@ interface Mission3JourneyProps {
   onBack: () => void;
 }
 
+interface TransformIdeaResponse {
+  needsMoreDetail?: boolean;
+  clarificationEs?: string;
+  englishSentence?: string;
+  spanishTranslation?: string;
+  grammarNote?: string;
+}
+
 export function Mission3Journey({
   answers,
   trainingProgram,
@@ -31,12 +42,21 @@ export function Mission3Journey({
 }: Mission3JourneyProps) {
   const [loadingIds, setLoadingIds] = useState<number[]>([]);
   const [errors, setErrors] = useState<Record<number, string>>({});
+  const [clarifications, setClarifications] = useState<Record<number, string>>({});
 
   const readyCount = answers.filter((a) => a.suggestedEnglish.trim().length > 0).length;
+  const progressPercent = Math.round((readyCount / answers.length) * 100);
 
   const handleInputChange = (id: number, userInput: string) => {
     const next = answers.map((item) => (item.id === id ? { ...item, userInput } : item));
     onUpdateAnswers(next);
+    if (clarifications[id]) {
+      setClarifications((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+    }
   };
 
   const handleEnglishChange = (id: number, suggestedEnglish: string) => {
@@ -45,6 +65,8 @@ export function Mission3Journey({
   };
 
   const transformSingle = async (item: JourneyQuestionAnswer) => {
+    if (loadingIds.includes(item.id)) return;
+
     if (!item.userInput.trim()) {
       setErrors((prev) => ({
         ...prev,
@@ -59,22 +81,34 @@ export function Mission3Journey({
       delete copy[item.id];
       return copy;
     });
+    setClarifications((prev) => {
+      const copy = { ...prev };
+      delete copy[item.id];
+      return copy;
+    });
     setLoadingIds((prev) => [...prev, item.id]);
 
     try {
-      const res = await fetch('/api/ai/transform-idea', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionEs: item.questionEs,
-          questionEn: item.questionEn,
-          userInput: item.userInput,
-          trainingProgram,
-        }),
+      const data = await postJson<TransformIdeaResponse>('/api/ai/transform-idea', {
+        questionEs: item.questionEs,
+        questionEn: item.questionEn,
+        userInput: item.userInput,
+        trainingProgram,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al transformar tu idea.');
+
+      if (data.needsMoreDetail) {
+        setClarifications((prev) => ({
+          ...prev,
+          [item.id]:
+            data.clarificationEs ||
+            'Tu respuesta es muy corta o ambigua. Por favor amplía un poco más tu idea para no inventar información.',
+        }));
+        playErrorSound(soundEnabled);
+        return;
+      }
+
+      if (!data.englishSentence || !data.englishSentence.trim()) {
+        throw new Error('No se recibió una oración en inglés válida. Por favor intenta de nuevo.');
       }
 
       const next = answers.map((q) =>
@@ -90,7 +124,11 @@ export function Mission3Journey({
       onUpdateAnswers(next);
       playSuccessSound(soundEnabled);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'No se pudo conectar con el asistente.';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo conectar con el asistente. Intenta de nuevo.';
+      console.error('[Mission3 Transform Error]', { questionId: item.id, err });
       setErrors((prev) => ({ ...prev, [item.id]: msg }));
       playErrorSound(soundEnabled);
     } finally {
@@ -131,11 +169,22 @@ export function Mission3Journey({
           </div>
         </div>
 
+        {/* Progress Bar for the 6 guiding questions */}
+        <div className="mt-4">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sky-500 via-violet-500 to-emerald-400 transition-all duration-300"
+              style={{ width: `${Math.max(progressPercent, 2)}%` }}
+            />
+          </div>
+        </div>
+
         <div className="mt-6 space-y-6">
           {answers.map((item) => {
             const isLoading = loadingIds.includes(item.id);
             const hasSuggestion = item.suggestedEnglish.trim().length > 0;
             const errMsg = errors[item.id];
+            const clarificationMsg = clarifications[item.id];
 
             return (
               <div
@@ -170,20 +219,21 @@ export function Mission3Journey({
                     <textarea
                       rows={2}
                       value={item.userInput}
+                      disabled={isLoading}
                       onChange={(e) => handleInputChange(item.id, e.target.value)}
                       placeholder={item.placeholderEs}
-                      className="w-full rounded-xl border border-slate-700 bg-[#060B17] px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-400 focus:outline-none"
+                      className="w-full rounded-xl border border-slate-700 bg-[#060B17] px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-400 focus:outline-none disabled:opacity-70"
                     />
                     <button
                       type="button"
                       disabled={isLoading}
                       onClick={() => transformSingle(item)}
-                      className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-violet-500 disabled:opacity-60 whitespace-nowrap cursor-pointer sm:self-end"
+                      className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-violet-500 disabled:cursor-wait disabled:opacity-65 whitespace-nowrap cursor-pointer sm:self-end"
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Transformando...</span>
+                          <span>AI IS THINKING...</span>
                         </>
                       ) : (
                         <>
@@ -195,17 +245,42 @@ export function Mission3Journey({
                   </div>
                 </div>
 
-                {errMsg && (
-                  <p className="mt-2 text-xs text-rose-400">{errMsg}</p>
+                {isLoading && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3.5 py-2 text-xs font-semibold text-violet-200">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" />
+                    <span>AI IS THINKING... Analizando tu idea sin inventar información.</span>
+                  </div>
                 )}
 
-                {/* Result Panel: Original + Suggested English + Spanish Translation */}
+                {clarificationMsg && (
+                  <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/35 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <span>{clarificationMsg}</span>
+                  </div>
+                )}
+
+                {errMsg && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-500/35 bg-rose-950/35 px-3.5 py-2.5 text-xs text-rose-200">
+                    <span>{errMsg}</span>
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => transformSingle(item)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/15 px-2.5 py-1 font-semibold text-rose-100 hover:bg-rose-500/25 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Reintentar</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Result Panel: My idea in English + Original + Traducción */}
                 {hasSuggestion && (
                   <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
                     <div className="rounded-xl border border-emerald-500/30 bg-[#060B17] p-3.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-emerald-400">
-                          Suggested English sentence (puedes editarla):
+                          My idea in English (puedes editarla):
                         </span>
                         <button
                           type="button"
@@ -230,7 +305,7 @@ export function Mission3Journey({
                         <p className="mt-1 text-slate-200">{item.userInput}</p>
                       </div>
                       <div className="rounded-xl border border-slate-800 bg-[#0B1221] p-3">
-                        <p className="font-semibold text-sky-400">Spanish translation:</p>
+                        <p className="font-semibold text-sky-400">Traducción:</p>
                         <p className="mt-1 text-slate-200">{item.spanishTranslation}</p>
                       </div>
                     </div>

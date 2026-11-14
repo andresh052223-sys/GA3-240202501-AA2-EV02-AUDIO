@@ -17,6 +17,7 @@ import type {
   ScriptPart2,
   ScriptState,
 } from '../types';
+import { postJson } from '../utils/apiClient';
 import { exportScriptToDocx, exportScriptToPdf } from '../utils/exportDocs';
 import { playErrorSound, playSuccessSound } from '../utils/sound';
 import { speakEnglish, stopSpeech } from '../utils/tts';
@@ -111,22 +112,20 @@ export function Mission5Script({
     setError('');
     setIsGenerating(true);
     try {
-      const res = await fetch('/api/ai/generate-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile,
-          customIntroduction,
-          journeyAnswers: journeyAnswers.map((a) => ({
-            questionEs: a.questionEs,
-            questionEn: a.questionEn,
-            userInput: a.userInput,
-            suggestedEnglish: a.suggestedEnglish,
-          })),
-        }),
+      const data = await postJson<{
+        part1?: string;
+        part2?: ScriptPart2;
+        conditionalsUsed?: ScriptState['conditionalsUsed'];
+      }>('/api/ai/generate-script', {
+        profile,
+        customIntroduction,
+        journeyAnswers: journeyAnswers.map((a) => ({
+          questionEs: a.questionEs,
+          questionEn: a.questionEn,
+          userInput: a.userInput,
+          suggestedEnglish: a.suggestedEnglish,
+        })),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'No se pudo generar el guion.');
 
       onUpdateScript({
         ...script,
@@ -153,16 +152,14 @@ export function Mission5Script({
     setError('');
     setIsImproving(true);
     try {
-      const res = await fetch('/api/ai/improve-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          part1: script.part1,
-          part2: script.part2,
-        }),
+      const data = await postJson<{
+        part1?: string;
+        part2?: ScriptPart2;
+        feedbackEs?: string;
+      }>('/api/ai/improve-script', {
+        part1: script.part1,
+        part2: script.part2,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'No se pudo mejorar el guion.');
 
       onUpdateScript({
         ...script,

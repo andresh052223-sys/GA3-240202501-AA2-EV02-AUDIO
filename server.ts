@@ -25,8 +25,32 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
+function parseGeminiJson<T>(rawText: string | undefined, contextLabel: string): T {
+  const cleaned = (rawText ?? '')
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  if (!cleaned) {
+    console.error(`[Gemini Empty Output] Context: ${contextLabel}`);
+    throw new Error('Gemini devolvió una respuesta vacía. Intenta de nuevo.');
+  }
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch (err) {
+    console.error(`[Gemini JSON Parse Failure] Context: ${contextLabel}`, {
+      preview: cleaned.slice(0, 300),
+      err,
+    });
+    throw new Error('No se pudo interpretar la respuesta estructurada del asistente. Intenta nuevamente.');
+  }
+}
+
 function handleGeminiError(res: express.Response, err: unknown, fallbackMsg: string) {
-  console.error('Gemini API error:', err);
+  console.error('[Gemini API Error]:', err);
   const message = err instanceof Error ? err.message : fallbackMsg;
   if (message.includes('API_KEY_INVALID') || message.includes('PERMISSION_DENIED')) {
     return res.status(403).json({
@@ -46,6 +70,14 @@ interface TransformIdeaBody {
   questionEn: string;
   userInput: string;
   trainingProgram?: string;
+}
+
+interface TransformIdeaGeminiResponse {
+  needsMoreDetail: boolean;
+  clarificationEs: string;
+  englishSentence: string;
+  spanishTranslation: string;
+  grammarNote: string;
 }
 
 interface GenerateScriptBody {
@@ -98,8 +130,20 @@ async function startServer() {
   app.post('/api/ai/transform-idea', async (req, res) => {
     try {
       const { questionEs, questionEn, userInput, trainingProgram } = req.body as TransformIdeaBody;
-      if (!userInput || !userInput.trim()) {
+      const trimmedInput = (userInput || '').trim();
+      if (!trimmedInput) {
         return res.status(400).json({ error: 'Escribe primero tu idea en español o inglés.' });
+      }
+
+      if (trimmedInput.length < 2) {
+        return res.json({
+          needsMoreDetail: true,
+          clarificationEs:
+            'Tu respuesta es demasiado corta. Por favor escribe al menos una palabra o frase clara sobre tu idea para convertirla sin inventar información.',
+          englishSentence: '',
+          spanishTranslation: '',
+          grammarNote: '',
+        });
       }
 
       const ai = getAiClient();
@@ -108,19 +152,33 @@ async function startServer() {
         contents: `Pregunta guía (ES): ${questionEs}
 Guiding question (EN): ${questionEn}
 Programa de formación (opcional): ${trainingProgram || 'No especificado'}
-Idea original del aprendiz: "${userInput.trim()}"`,
+Idea original del aprendiz: "${trimmedInput}"`,
         config: {
           systemInstruction: `Eres un profesor experto de inglés para aprendices del SENA en Colombia (nivel B1 intermedio).
-Convierte la idea original del aprendiz en una o dos oraciones naturales y fluidas en inglés listas para usarse en una presentación oral.
+Analiza la idea original del aprendiz en español o inglés y la pregunta guía correspondiente.
+
 REGLAS ESTRICTAS:
-1. NO inventes experiencias personales, empresas, títulos ni datos que el aprendiz no haya mencionado. Usa únicamente la información proporcionada.
-2. Usa inglés claro, natural y profesional (nivel intermedio, sin vocabulario rebuscado).
-3. Devuelve la traducción exacta al español de la oración sugerida en inglés.
-4. Incluye una nota gramatical muy breve en español (máximo 1 frase) explicando por qué suena natural.`,
+1. NUNCA inventes experiencias personales, empresas, títulos, años ni datos que el aprendiz no haya mencionado. Mantén exactamente la intención original.
+2. Si el aprendiz da una respuesta breve pero clara y válida en contexto (ejemplo: pregunta "¿Qué estás estudiando actualmente?" y respuesta "video games" -> "I am currently studying video games." / "Actualmente estoy estudiando videojuegos."), SÍ debes convertirla en una oración completa y natural usando el contexto de la pregunta, con vocabulario sencillo, corrigiendo errores gramaticales si los hay, y estableciendo needsMoreDetail: false.
+3. ÚNICAMENTE si la respuesta es incomprensible, vacía de significado o demasiado ambigua para responder la pregunta sin inventar datos (ej: "no sé", "ok", "sí", "nada", "asdf", signos sueltos), establece needsMoreDetail: true, deja englishSentence y spanishTranslation vacíos, y en clarificationEs pídele amablemente en español que amplíe su respuesta con un ejemplo concreto.
+4. Cuando needsMoreDetail sea false:
+   - englishSentence: 1 o 2 oraciones claras y naturales en inglés nivel intermedio.
+   - spanishTranslation: traducción fiel al español de englishSentence.
+   - grammarNote: nota breve en español (máximo 1 frase) explicando la estructura o vocabulario utilizado.`,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              needsMoreDetail: {
+                type: Type.BOOLEAN,
+                description:
+                  'True only if the user input is meaningless or too ambiguous to convert without inventing facts.',
+              },
+              clarificationEs: {
+                type: Type.STRING,
+                description:
+                  'Friendly request in Spanish asking the learner to expand their idea when needsMoreDetail is true, or empty string when false.',
+              },
               englishSentence: {
                 type: Type.STRING,
                 description: 'Natural intermediate English sentence(s) based strictly on user idea.',
@@ -134,12 +192,21 @@ REGLAS ESTRICTAS:
                 description: 'Brief 1-sentence tip in Spanish about vocabulary or grammar used.',
               },
             },
-            required: ['englishSentence', 'spanishTranslation', 'grammarNote'],
+            required: [
+              'needsMoreDetail',
+              'clarificationEs',
+              'englishSentence',
+              'spanishTranslation',
+              'grammarNote',
+            ],
           },
         },
       });
 
-      const parsed = JSON.parse((response.text ?? '{}').trim());
+      const parsed = parseGeminiJson<TransformIdeaGeminiResponse>(
+        response.text,
+        'transform-idea'
+      );
       return res.json(parsed);
     } catch (err) {
       return handleGeminiError(res, err, 'No se pudo transformar tu idea en este momento.');
@@ -229,7 +296,7 @@ REQUISITOS OBLIGATORIOS DEL GUION:
         },
       });
 
-      const parsed = JSON.parse((response.text ?? '{}').trim());
+      const parsed = parseGeminiJson<Record<string, unknown>>(response.text, 'generate-script');
       return res.json(parsed);
     } catch (err) {
       return handleGeminiError(res, err, 'No se pudo generar el guion en este momento.');
@@ -294,7 +361,7 @@ REGLAS CRÍTICAS:
         },
       });
 
-      const parsed = JSON.parse((response.text ?? '{}').trim());
+      const parsed = parseGeminiJson<Record<string, unknown>>(response.text, 'improve-script');
       return res.json(parsed);
     } catch (err) {
       return handleGeminiError(res, err, 'No se pudo mejorar el guion en este momento.');
@@ -349,12 +416,46 @@ REGLAS:
         },
       });
 
-      const parsed = JSON.parse((response.text ?? '{}').trim());
+      const parsed = parseGeminiJson<Record<string, unknown>>(response.text, 'coach');
       return res.json(parsed);
     } catch (err) {
       return handleGeminiError(res, err, 'El AI English Coach no pudo responder en este momento.');
     }
   });
+
+  // Catch-all for unknown /api/* routes so they ALWAYS return JSON (never HTML fallback)
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({
+      error: `Ruta de API no encontrada: ${req.method} ${req.originalUrl}`,
+    });
+  });
+
+  // Global JSON error handler for Express (prevents HTML error responses on malformed body/server errors)
+  app.use(
+    (
+      err: unknown,
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (req.path.startsWith('/api')) {
+        console.error('[Express API Middleware Error]:', err);
+        const status =
+          typeof err === 'object' &&
+          err !== null &&
+          'status' in err &&
+          typeof (err as { status?: unknown }).status === 'number'
+            ? (err as { status: number }).status
+            : 500;
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Error interno al procesar la solicitud.';
+        return res.status(status).json({ error: message });
+      }
+      return next(err);
+    }
+  );
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
