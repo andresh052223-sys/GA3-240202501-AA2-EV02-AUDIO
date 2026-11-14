@@ -53,7 +53,8 @@ function handleGeminiError(res: express.Response, err: unknown, fallbackMsg: str
   console.error('[Gemini API Error]:', err);
   const message = err instanceof Error ? err.message : fallbackMsg;
   if (message.includes('API_KEY_INVALID') || message.includes('PERMISSION_DENIED')) {
-    return res.status(403).json({
+    // Use 401 instead of 403 so nginx proxy_intercept_errors (error_page 403) does not replace JSON with forbidden.html
+    return res.status(401).json({
       error: 'La clave de Gemini API no es válida o no tiene permisos. Verifica Settings > Secrets.',
     });
   }
@@ -121,6 +122,20 @@ interface CoachBody {
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
+
+  // Prevent stale HTML/TSX/API caching in preview iframes when HMR is disabled
+  app.use((req, res, next) => {
+    if (
+      req.path === '/' ||
+      req.path.endsWith('.html') ||
+      req.path.startsWith('/src/') ||
+      req.path.startsWith('/api/')
+    ) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+    next();
+  });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });

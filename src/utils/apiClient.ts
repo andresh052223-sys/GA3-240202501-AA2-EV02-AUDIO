@@ -1,4 +1,4 @@
-// Safe API client helper that validates HTTP status and Content-Type before parsing JSON
+// Safe API client helper that validates HTTP status, redirects, and Content-Type before parsing JSON
 
 export class ApiClientError extends Error {
   status: number;
@@ -18,6 +18,8 @@ export async function postJson<TResponse>(url: string, payload: unknown): Promis
   try {
     response = await fetch(url, {
       method: 'POST',
+      credentials: 'same-origin',
+      redirect: 'manual',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -30,6 +32,21 @@ export async function postJson<TResponse>(url: string, payload: unknown): Promis
       'No se pudo conectar con el servidor de inteligencia artificial. Verifica tu conexión e inténtalo nuevamente.',
       0,
       false
+    );
+  }
+
+  // Handle auth/proxy redirect (e.g. session cookie refresh redirect to HTML auth bridge)
+  if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+    console.error('[API Unexpected Redirect]', {
+      url,
+      type: response.type,
+      status: response.status,
+      location: response.headers.get('location'),
+    });
+    throw new ApiClientError(
+      'La sesión de la aplicación necesita renovarse. Recarga la página e inténtalo nuevamente.',
+      response.status || 302,
+      true
     );
   }
 
@@ -48,10 +65,27 @@ export async function postJson<TResponse>(url: string, payload: unknown): Promis
       url,
       status: response.status,
       contentType,
-      preview: trimmed.slice(0, 200),
+      preview: trimmed.slice(0, 240),
     });
+
+    if (response.status === 403) {
+      throw new ApiClientError(
+        'Acceso denegado por el servidor o proxy (HTTP 403). Recarga la página o verifica los permisos de la API Key en Settings > Secrets.',
+        403,
+        true
+      );
+    }
+
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      throw new ApiClientError(
+        `El servidor está iniciando o temporalmente ocupado (HTTP ${response.status}). Espera un momento y vuelve a intentarlo.`,
+        response.status,
+        true
+      );
+    }
+
     throw new ApiClientError(
-      `El servidor devolvió una respuesta HTML inesperada (HTTP ${response.status || 'sin estado'}) en lugar de JSON. Verifica que el backend esté activo e inténtalo de nuevo.`,
+      `El servidor devolvió una respuesta HTML inesperada (HTTP ${response.status || 'sin estado'}) en lugar de JSON. Recarga la página e inténtalo de nuevo.`,
       response.status,
       true
     );
@@ -74,7 +108,7 @@ export async function postJson<TResponse>(url: string, payload: unknown): Promis
       url,
       status: response.status,
       contentType,
-      preview: trimmed.slice(0, 200),
+      preview: trimmed.slice(0, 240),
       parseErr,
     });
     throw new ApiClientError(
@@ -96,6 +130,7 @@ export async function postJson<TResponse>(url: string, payload: unknown): Promis
     console.error('[API Server Error]', {
       url,
       status: response.status,
+      contentType,
       message: serverMessage,
     });
     throw new ApiClientError(serverMessage, response.status, false);
