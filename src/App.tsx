@@ -28,6 +28,13 @@ import type {
   ScriptState,
   StationCompletion,
 } from './types';
+import {
+  buildFullPart2FromJourney,
+  buildSectionFromAnswer,
+  DEFAULT_CONCLUSION,
+  DEFAULT_CONDITIONALS_USED,
+  QUESTION_ID_TO_PART2_KEY,
+} from './utils/scriptBuilder';
 import { playMissionCompleteSound } from './utils/sound';
 
 const STORAGE_KEY = 'english_audio_mission_state_v1';
@@ -61,12 +68,14 @@ const DEFAULT_STATE: AppState = {
     part1: '',
     part2: {
       journey: '',
+      whyProgram: '',
+      skillsAndKnowledge: '',
       futurePlans: '',
-      decisionsAndActions: '',
-      problemsAndSolutions: '',
-      leadership: '',
-      adaptability: '',
+      professionalFuture: '',
+      challengesAndSolutions: '',
     },
+    conclusion: DEFAULT_CONCLUSION,
+    conditionalsUsed: DEFAULT_CONDITIONALS_USED,
     exportedDocument: false,
   },
   recordingMeta: null,
@@ -98,6 +107,13 @@ function loadInitialState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
     const parsed = JSON.parse(raw) as Partial<AppState>;
+    const hydratedAnswers =
+      Array.isArray(parsed.journeyAnswers) && parsed.journeyAnswers.length === 6
+        ? parsed.journeyAnswers
+        : DEFAULT_STATE.journeyAnswers;
+    const rebuiltPart2 = buildFullPart2FromJourney(hydratedAnswers);
+    const savedPart2 = parsed.script?.part2;
+
     return {
       ...DEFAULT_STATE,
       ...parsed,
@@ -107,14 +123,23 @@ function loadInitialState(): AppState {
       script: {
         ...DEFAULT_STATE.script,
         ...(parsed.script || {}),
-        part2: { ...DEFAULT_STATE.script.part2, ...(parsed.script?.part2 || {}) },
+        part2: {
+          journey: savedPart2?.journey?.trim() || rebuiltPart2.journey,
+          whyProgram: savedPart2?.whyProgram?.trim() || rebuiltPart2.whyProgram,
+          skillsAndKnowledge:
+            savedPart2?.skillsAndKnowledge?.trim() || rebuiltPart2.skillsAndKnowledge,
+          futurePlans: savedPart2?.futurePlans?.trim() || rebuiltPart2.futurePlans,
+          professionalFuture:
+            savedPart2?.professionalFuture?.trim() || rebuiltPart2.professionalFuture,
+          challengesAndSolutions:
+            savedPart2?.challengesAndSolutions?.trim() || rebuiltPart2.challengesAndSolutions,
+        },
+        conclusion: parsed.script?.conclusion?.trim() || DEFAULT_CONCLUSION,
+        conditionalsUsed: parsed.script?.conditionalsUsed || DEFAULT_CONDITIONALS_USED,
       },
       checklist: { ...DEFAULT_STATE.checklist, ...(parsed.checklist || {}) },
       progress: { ...DEFAULT_STATE.progress, ...(parsed.progress || {}) },
-      journeyAnswers:
-        Array.isArray(parsed.journeyAnswers) && parsed.journeyAnswers.length === 6
-          ? parsed.journeyAnswers
-          : DEFAULT_STATE.journeyAnswers,
+      journeyAnswers: hydratedAnswers,
     };
   } catch {
     return DEFAULT_STATE;
@@ -270,7 +295,30 @@ export default function App() {
   };
 
   const handleUpdateJourney = (journeyAnswers: JourneyQuestionAnswer[]) => {
-    setState((prev) => ({ ...prev, journeyAnswers }));
+    setState((prev) => {
+      const nextPart2 = { ...prev.script.part2 };
+      for (const nextAns of journeyAnswers) {
+        const prevAns = prev.journeyAnswers.find((p) => p.id === nextAns.id);
+        const key = QUESTION_ID_TO_PART2_KEY[nextAns.id];
+        if (!key) continue;
+        // Automatically update the changed question's section while preserving the other 5
+        if (!prevAns || prevAns.suggestedEnglish !== nextAns.suggestedEnglish || !nextPart2[key]?.trim()) {
+          nextPart2[key] = buildSectionFromAnswer(nextAns.id, nextAns.suggestedEnglish);
+        }
+      }
+
+      return {
+        ...prev,
+        journeyAnswers,
+        script: {
+          ...prev.script,
+          part1: prev.script.part1.trim() ? prev.script.part1 : prev.customIntroduction,
+          part2: nextPart2,
+          conclusion: prev.script.conclusion?.trim() || DEFAULT_CONCLUSION,
+          conditionalsUsed: DEFAULT_CONDITIONALS_USED,
+        },
+      };
+    });
   };
 
   const handleUpdateStations = (stationProgress: StationCompletion) => {
@@ -527,6 +575,7 @@ export default function App() {
             soundEnabled={state.progress.soundEnabled}
             isCompleted={state.progress.completedMissions.includes(5)}
             onUpdateScript={handleUpdateScript}
+            onGoToMission3={() => handleOpenMission(3)}
             onComplete={() => completeMission(5, 'mission-6')}
             onBack={() => setScreen('map')}
           />

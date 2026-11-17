@@ -111,12 +111,13 @@ export function Mission6Studio({
   const fullScriptBlocks = useMemo(() => {
     return [
       { title: 'PART 1 – PERSONAL INTRODUCTION', text: script.part1 },
-      { title: '1. Academic & Professional Journey', text: script.part2.journey },
-      { title: '2. Future Plans & Goals', text: script.part2.futurePlans },
-      { title: '3. Decisions & Actions', text: script.part2.decisionsAndActions },
-      { title: '4. Possible Problems & Solutions', text: script.part2.problemsAndSolutions },
-      { title: '5. Leadership & Responsibility', text: script.part2.leadership },
-      { title: '6. Flexibility & Adaptability', text: script.part2.adaptability },
+      { title: '1. MY ACADEMIC JOURNEY', text: script.part2.journey },
+      { title: '2. WHY I CHOSE MY TRAINING PROGRAM', text: script.part2.whyProgram },
+      { title: '3. SKILLS AND KNOWLEDGE', text: script.part2.skillsAndKnowledge },
+      { title: '4. MY FUTURE PLANS AND PROFESSIONAL GOALS', text: script.part2.futurePlans },
+      { title: '5. MY PROFESSIONAL FUTURE', text: script.part2.professionalFuture },
+      { title: '6. CHALLENGES AND SOLUTIONS', text: script.part2.challengesAndSolutions },
+      { title: 'CONCLUSION', text: script.conclusion || '' },
     ].filter((b) => b.text.trim().length > 0);
   }, [script]);
 

@@ -33,12 +33,12 @@ function sanitizeFilename(name: string): string {
 }
 
 const PART2_SECTIONS: Array<{ key: keyof ScriptState['part2']; title: string }> = [
-  { key: 'journey', title: '1. My Academic and Professional Journey' },
-  { key: 'futurePlans', title: '2. My Future Plans and Goals' },
-  { key: 'decisionsAndActions', title: '3. My Decisions and Actions' },
-  { key: 'problemsAndSolutions', title: '4. Possible Problems and Solutions' },
-  { key: 'leadership', title: '5. Leadership and Professional Responsibility' },
-  { key: 'adaptability', title: '6. Flexibility and Adaptability' },
+  { key: 'journey', title: '1. MY ACADEMIC JOURNEY' },
+  { key: 'whyProgram', title: '2. WHY I CHOSE MY TRAINING PROGRAM' },
+  { key: 'skillsAndKnowledge', title: '3. SKILLS AND KNOWLEDGE' },
+  { key: 'futurePlans', title: '4. MY FUTURE PLANS AND PROFESSIONAL GOALS' },
+  { key: 'professionalFuture', title: '5. MY PROFESSIONAL FUTURE' },
+  { key: 'challengesAndSolutions', title: '6. CHALLENGES AND SOLUTIONS' },
 ];
 
 export async function exportScriptToDocx(profile: LearnerProfile, script: ScriptState): Promise<void> {
@@ -175,6 +175,32 @@ export async function exportScriptToDocx(profile: LearnerProfile, script: Script
     );
   }
 
+  if (script.conclusion?.trim()) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 180, after: 80 },
+        children: [
+          new TextRun({
+            text: 'CONCLUSION',
+            bold: true,
+            size: 22,
+            color: '059669',
+          }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 160, line: 340 },
+        children: [
+          new TextRun({
+            text: script.conclusion.trim(),
+            size: 22,
+            color: '1E293B',
+          }),
+        ],
+      })
+    );
+  }
+
   const doc = new Document({
     sections: [
       {
@@ -278,6 +304,25 @@ export function exportScriptToPdf(profile: LearnerProfile, script: ScriptState):
       y += 15;
     }
     y += 12;
+  }
+
+  if (script.conclusion?.trim()) {
+    ensureSpace(44);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(5, 150, 105);
+    doc.text('CONCLUSION', margin, y);
+    y += 16;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10.5);
+    doc.setTextColor(51, 65, 85);
+    const lines = doc.splitTextToSize(script.conclusion.trim(), maxWidth);
+    for (const line of lines) {
+      ensureSpace(16);
+      doc.text(line, margin, y);
+      y += 15;
+    }
   }
 
   doc.save(`Guion_GA3-240202501-AA2-EV02_${sanitizeFilename(profile.fullName)}.pdf`);

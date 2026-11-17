@@ -73,16 +73,17 @@ export interface StationCompletion {
 
 export interface ScriptPart2 {
   journey: string;
+  whyProgram: string;
+  skillsAndKnowledge: string;
   futurePlans: string;
-  decisionsAndActions: string;
-  problemsAndSolutions: string;
-  leadership: string;
-  adaptability: string;
+  professionalFuture: string;
+  challengesAndSolutions: string;
 }
 
 export interface ScriptState {
   part1: string;
   part2: ScriptPart2;
+  conclusion: string;
   conditionalsUsed?: {
     zero: string;
     first: string;
